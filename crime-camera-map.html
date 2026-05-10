@@ -985,12 +985,6 @@
           <span>District</span>
           <span class="popup-badge badge-${cam.district}">${districtLabels[cam.district]}</span>
         </div>
-        <div style="margin-top:10px;border-radius:6px;overflow:hidden;">
-          <img src="https://maps.googleapis.com/maps/api/streetview?size=240x140&location=${cam.lat},${cam.lng}&fov=90&pitch=0&key=AIzaSyBZ-6pObvOotHPVMwdYzbnicUDaiBGhgN4" 
-               style="width:100%;display:block;border-radius:6px;" 
-               alt="Street View"
-               onerror="this.style.display='none'"/>
-        </div>
       </div>
     `, { maxWidth: 260 });
 
