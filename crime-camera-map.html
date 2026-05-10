@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0a0f1e">
+  <title>D.C. Crime Cameras</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap');
+
+    :root {
+      --bg: #0a0f1e;
+      --surface: #0e1628;
+      --panel: #111d35;
+      --accent: #00e5ff;
+      --accent2: #ff3d6b;
+      --warn: #ffb700;
+      --text: #cfe4ff;
+      --muted: #4a6080;
+      --border: rgba(0,229,255,0.15);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Exo 2', sans-serif;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* HEADER */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      z-index: 1000;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo-icon {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+    }
+
+    .logo-text {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 16px;
+      color: var(--accent);
+      letter-spacing: 2px;
+    }
+
+    .logo-sub {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-top: -2px;
+    }
+
+    .header-stats {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .stat-pill {
+      background: rgba(0,229,255,0.08);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-family: 'Share Tech Mono', monospace;
+      color: var(--accent);
+    }
+
+    .live-dot {
+      width: 7px; height: 7px;
+      background: #00ff88;
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+      display: inline-block;
+      margin-right: 5px;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.7); }
+    }
+
+    /* MAP — inside main-content flex container */
+    #map {
+      flex: 1;
+      width: 100%;
+      z-index: 1;
+    }
+
+    /* Leaflet dark tiles override */
+    .leaflet-tile-pane { filter: brightness(0.85) saturate(0.7) hue-rotate(180deg); }
+
+    /* FILTER BAR */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      padding: 10px 12px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      overflow-x: auto;
+      flex-shrink: 0;
+      scrollbar-width: none;
+    }
+    .filter-bar::-webkit-scrollbar { display: none; }
+
+    .filter-btn {
+      flex-shrink: 0;
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-family: 'Exo 2', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    .filter-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--bg);
+    }
+
+    .filter-btn:not(.active):hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* POPUP */
+    .leaflet-popup-content-wrapper {
+      background: var(--panel) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 10px !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+      color: var(--text) !important;
+    }
+    .leaflet-popup-tip { background: var(--panel) !important; }
+    .leaflet-popup-content { margin: 0 !important; }
+
+    .popup-inner {
+      padding: 14px 16px;
+      min-width: 200px;
+    }
+
+    .popup-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .popup-icon {
+      font-size: 20px;
+    }
+
+    .popup-title {
+      font-weight: 700;
+      font-size: 14px;
+      color: #fff;
+    }
+
+    .popup-id {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--accent);
+      letter-spacing: 1px;
+    }
+
+    .popup-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      color: var(--text);
+    }
+
+    .popup-row:last-child { border-bottom: none; }
+    .popup-row span:first-child { color: var(--muted); }
+
+    .popup-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-d1 { background: rgba(227,38,54,0.15);   color: #e32636; border: 1px solid #e32636; }
+    .badge-d2 { background: rgba(253,238,0,0.15);   color: #fdee00; border: 1px solid #fdee00; }
+    .badge-d3 { background: rgba(153,102,204,0.15); color: #9966cc; border: 1px solid #9966cc; }
+    .badge-d4 { background: rgba(0,72,186,0.15);    color: #0048ba; border: 1px solid #0048ba; }
+    .badge-d5 { background: rgba(102,255,0,0.15);   color: #66ff00; border: 1px solid #66ff00; }
+    .badge-d6 { background: rgba(0,66,37,0.15);     color: #00a85a; border: 1px solid #00a85a; }
+    .badge-d7 { background: rgba(255,56,0,0.15);    color: #ff3800; border: 1px solid #ff3800; }
+
+    /* CUSTOM MARKER */
+    .cam-marker {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+      font-size: 16px;
+      border: 2px solid;
+      box-shadow: 0 0 12px currentColor;
+      background: var(--bg);
+    }
+
+    .cam-d1 { border-color: #e32636; color: #e32636; }
+    .cam-d2 { border-color: #fdee00; color: #fdee00; }
+    .cam-d3 { border-color: #9966cc; color: #9966cc; }
+    .cam-d4 { border-color: #0048ba; color: #0048ba; }
+    .cam-d5 { border-color: #66ff00; color: #66ff00; }
+    .cam-d6 { border-color: #00a85a; color: #00a85a; }
+    .cam-d7 { border-color: #ff3800; color: #ff3800; }
+
+    /* SUBSTATION MARKER */
+    .substation-marker {
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 6px;
+      font-size: 18px;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 14px rgba(255,255,255,0.6);
+      background: #1a1a2e;
+    }
+    .district-label {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      font-weight: bold;
+      color: rgba(255,255,255,0.5);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+    .district-label::before { display: none !important; }
+
+    /* LAYOUT WRAPPER */
+    .main-content {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+      width: 280px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    .sidebar-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .sidebar-search {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .sidebar-search input {
+      width: 100%;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      color: var(--text);
+      font-family: 'Exo 2', sans-serif;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .sidebar-search input::placeholder { color: var(--muted); }
+    .sidebar-search input:focus { border-color: var(--accent); }
+
+    .sidebar-list {
+      overflow-y: auto;
+      flex: 1;
+      scrollbar-width: thin;
+      scrollbar-color: var(--muted) transparent;
+    }
+
+    .sidebar-list::-webkit-scrollbar { width: 4px; }
+    .sidebar-list::-webkit-scrollbar-track { background: transparent; }
+    .sidebar-list::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 2px; }
+
+    .sidebar-district-group { margin-bottom: 4px; }
+
+    .sidebar-district-title {
+      padding: 6px 14px;
+      font-size: 10px;
+      font-family: 'Share Tech Mono', monospace;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .district-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .sidebar-item {
+      padding: 8px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sidebar-item:hover { background: rgba(0,229,255,0.05); }
+    .sidebar-item.active { background: rgba(0,229,255,0.08); }
+
+    .sidebar-item-icon { font-size: 13px; flex-shrink: 0; }
+
+    .sidebar-item-info { flex: 1; min-width: 0; }
+
+    .sidebar-item-name {
+      font-size: 12px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sidebar-item-id {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    /* TOGGLE SIDEBAR BUTTON */
+    .sidebar-toggle {
+      position: absolute;
+      left: 280px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 1000;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: none;
+      border-radius: 0 8px 8px 0;
+      padding: 14px 6px;
+      cursor: pointer;
+      color: var(--accent);
+      font-size: 14px;
+      transition: all 0.3s;
+      box-shadow: 3px 0 10px rgba(0,0,0,0.4);
+    }
+    .sidebar-toggle:hover { background: var(--panel); color: #fff; }
+    .sidebar.collapsed { width: 0; overflow: hidden; }
+    .sidebar.collapsed ~ .map-wrapper .sidebar-toggle { left: 0; }
+
+    /* MAP container adjusts */
+    #map { flex: 1; width: 100%; z-index: 1; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">📷</div>
+    <div>
+      <div class="logo-text">D.C. CRIME CAMERAS</div>
+      <div class="logo-sub">Surveillance Network</div>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="stat-pill" id="total-count">0 Cameras</div>
+  </div>
+</header>
+
+<div class="main-content">
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span>📋 Camera List</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span id="sidebar-count" style="color:var(--muted)">0</span>
+        <button onclick="toggleSidebar()" style="background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--accent);cursor:pointer;font-size:11px;padding:2px 7px;" title="Collapse">◀</button>
+      </div>
+    </div>
+    <div class="sidebar-search">
+      <input type="text" id="sidebar-search" placeholder="Search locations...">
+    </div>
+    <div class="sidebar-list" id="sidebar-list"></div>
+  </div>
+  <div style="position:relative;flex:1;display:flex;flex-direction:column;">
+    <button id="sidebar-expand-btn" onclick="toggleSidebar()" style="display:none;position:absolute;top:12px;left:12px;z-index:1000;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;padding:6px 10px;box-shadow:0 2px 8px rgba(0,0,0,0.5);">▶ Show List</button>
+    <div id="map"></div>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <button class="filter-btn active" onclick="filterCameras(this, 'all')">All</button>
+  <button class="filter-btn" style="--dc:#00e5ff" onclick="filterCameras(this, 'd1')">District 1</button>
+  <button class="filter-btn" style="--dc:#ff6400" onclick="filterCameras(this, 'd2')">District 2</button>
+  <button class="filter-btn" style="--dc:#b400ff" onclick="filterCameras(this, 'd3')">District 3</button>
+  <button class="filter-btn" style="--dc:#00ff88" onclick="filterCameras(this, 'd4')">District 4</button>
+  <button class="filter-btn" style="--dc:#ffdc00" onclick="filterCameras(this, 'd5')">District 5</button>
+  <button class="filter-btn" style="--dc:#ff3d6b" onclick="filterCameras(this, 'd6')">District 6</button>
+  <button class="filter-btn" style="--dc:#ff3800" onclick="filterCameras(this, 'd7')">District 7</button>
+  <button class="filter-btn" id="substation-toggle-btn" onclick="toggleSubstations(this)">🏢 Substations</button>
+</div>
+
+<script>
+  // ================================================================
+  // 📷 CAMERA LIST — ADD, EDIT, OR REMOVE CAMERAS HERE
+  // ================================================================
+  //
+  // Each camera entry looks like this:
+  //
+  //   { id: "CAM-001", name: "Your Location Name", lat: 38.9000, lng: -77.0300, district: "d1" },
+  //
+  // FIELDS:
+  //   id       — Unique ID for each camera. Keep incrementing: CAM-001, CAM-002, CAM-003...
+  //   name     — The label shown when you tap the camera pin on the map
+  //   lat      — Latitude  (get from Google Maps: long-press a spot → copy coordinates)
+  //   lng      — Longitude (the negative number for Washington D.C.)
+  //   district — Which district this camera belongs to:
+  //                "d1" = District 1 (cyan)
+  //                "d2" = District 2 (orange)
+  //                "d3" = District 3 (purple)
+  //                "d4" = District 4 (green)
+  //                "d5" = District 5 (yellow)
+  //                "d6" = District 6 (red)
+  //                "d7" = District 7 (blue)
+  //
+  // TO ADD A CAMERA:
+  //   Copy any line below, paste it at the end (before the ] ),
+  //   then update the id, name, lat, lng, and district.
+  //
+  // TO REMOVE A CAMERA:
+  //   Delete its line entirely.
+  //
+  // TO EDIT A CAMERA:
+  //   Change any value inside the quotes.
+  //
+  // ================================================================
+
+  const cameras = [
+    { id: "CAM-101", name: "1st Street, NW and L Street, NW", lat: 38.90365, lng: -77.01205,  district: "d1" },
+    { id: "CAM-102", name: "1st Place, NW and M Street, NW", lat: 38.90556, lng: -77.0102,  district: "d1" },
+    { id: "CAM-103", name: "11th Street SE & K Street SE", lat: 38.87817, lng: -76.99136, district: "d1" },
+    { id: "CAM-104", name: "12th Street SE & Pennsylvania Avenue SE", lat: 38.88211, lng: -76.99036, district: "d1" },
+    { id: "CAM-105", name: "12th Street SE & I Street SE", lat: 38.87935, lng: -76.99011, district: "d1" },
+    { id: "CAM-106", name: "13th Street SE & C Street SE", lat: 38.88607, lng: -76.98831, district: "d1" },
+    { id: "CAM-107", name: "13th Street SE & G Street SE", lat: 38.88117, lng: -76.98841, district: "d1" },
+    { id: "CAM-108", name: "1st Street, SW and P Street, SW", lat: 38.87196, lng: -77.01206, district: "d1" },
+    { id: "CAM-109", name: "15th Street, SE and East Capitol Street, SE", lat: 38.88972, lng: -76.98351, district: "d1" },
+    { id: "CAM-110", name: "214 I St SW", lat: 38.87935, lng: -77.01388, district: "d1" },
+    { id: "CAM-111", name: "214 K St SW", lat: 38.87834, lng: -77.01421, district: "d1" },
+    { id: "CAM-112", name: "201 M St SW", lat: 38.87658, lng: -77.01439, district: "d1" },
+    { id: "CAM-113", name: "214 L St SW", lat: 38.87745, lng: -77.01463, district: "d1" },
+    { id: "CAM-114", name: "1724 Independence Ave SE", lat: 38.88767, lng: -76.97991, district: "d1" },
+    { id: "CAM-115", name: "1st Street, NW and Pierce Street, NW", lat: 38.9048, lng: -77.01222, district: "d1" },
+
+    { id: "CAM-201", name: "14th Street, NW and P Street, NW", lat: 38.9097273, lng: -77.0321367, district: "d2" },
+    { id: "CAM-202", name: "1143 14th St NW",                  lat: 38.9049291, lng: -77.0315757, district: "d2" },
+    { id: "CAM-203", name: "17th Street, NW and N Street, NW", lat: 38.90729, lng: -77.03865, district: "d2" },
+    { id: "CAM-204", name: "10th Street, NW and F Street, NW", lat: 38.89747, lng: -77.02589, district: "d2" },
+    { id: "CAM-205", name: "10th Street, NW and H Street, NW", lat: 38.89993, lng: -77.02612, district: "d2" },
+    { id: "CAM-206", name: "12th Street, NW and G Street, NW", lat: 38.89821, lng: -77.0282, district: "d2" },
+    { id: "CAM-207", name: "11th Street, NW and H Street, NW", lat: 38.89989, lng: -77.02723, district: "d2" },
+    { id: "CAM-208", name: "9th Street, NW and G Street, NW", lat: 38.89851, lng: -77.02407, district: "d2" },
+    { id: "CAM-209", name: "9th Street, NW and New York Ave, NW", lat: 38.90223, lng: -77.02418, district: "d2" },
+    { id: "CAM-210", name: "3200 Brandywine St NW", lat: 38.94974, lng: -77.06423, district: "d2" },
+    { id: "CAM-211", name: "3273 M Street, NW", lat: 38.90504, lng: -77.06497, district: "d2" },
+    { id: "CAM-212", name: "3249 M Street, NW", lat: 38.90522, lng: -77.06438, district: "d2" },
+    { id: "CAM-213", name: "3219 M Street, NW", lat: 38.90523, lng: -77.0635,  district: "d2" },
+    { id: "CAM-214", name: "3131 M Street, NW", lat: 38.90526, lng: -77.06203, district: "d2" },
+    { id: "CAM-215", name: "3109 M Street, NW", lat: 38.90528, lng: -77.0615,  district: "d2" },
+    { id: "CAM-216", name: "3067 M Street, NW", lat: 38.90528, lng: -77.06088,  district: "d2" },
+    { id: "CAM-217", name: "33rd Street, NW and M Street, NW", lat: 38.905, lng: -77.06593,  district: "d2" },
+    { id: "CAM-218", name: "3039 M Street, NW", lat: 38.90529, lng: -77.05998,  district: "d2" },
+    { id: "CAM-219", name: "1237 Wisconsin Avenue, NW", lat: 38.90601, lng: -77.0627,  district: "d2" },
+    { id: "CAM-220", name: "1267 Wisconsin Avenue, NW", lat: 38.90672, lng: -77.06307,  district: "d2" },
+    { id: "CAM-221", name: "18th Street, NW and Connecticut Avenue, NW", lat: 38.90636, lng: -77.04182,  district: "d2" },
+    { id: "CAM-222", name: "19th Street, NW and M Street NW", lat: 38.90555, lng: -77.04321,  district: "d2" },
+
+
+    { id: "CAM-116", name: "1st Street", lat: 38.9036587, lng: -77.0120535, district: "d1" },
+    { id: "CAM-117", name: "1st Place", lat: 38.9055654, lng: -77.0102029, district: "d1" },
+    { id: "CAM-118", name: "11th Street Southeast & K Street Southeast", lat: 38.8781791, lng: -76.9913682, district: "d1" },
+    { id: "CAM-119", name: "12th Street Southeast & Pennsylvania Avenue Southeast", lat: 38.8821132, lng: -76.990362, district: "d1" },
+    { id: "CAM-120", name: "12th Street Southeast & I Street Southeast", lat: 38.8793595, lng: -76.9901169, district: "d1" },
+    { id: "CAM-121", name: "13th Street Southeast & C Street Southeast", lat: 38.8860793, lng: -76.988317, district: "d1" },
+    { id: "CAM-122", name: "13th Street Southeast & G Street Southeast", lat: 38.8811749, lng: -76.9884163, district: "d1" },
+    { id: "CAM-123", name: "15th Street", lat: 38.8897221, lng: -76.9835115, district: "d1" },
+    { id: "CAM-124", name: "3rd Street", lat: 38.8793954, lng: -77.0021081, district: "d1" },
+    { id: "CAM-125", name: "5th Street", lat: 38.9026385, lng: -77.0188187, district: "d1" },
+    { id: "CAM-126", name: "7th Street", lat: 38.8997439, lng: -77.0220649, district: "d1" },
+    { id: "CAM-127", name: "8th Street", lat: 38.9001172, lng: -76.9951703, district: "d1" },
+    { id: "CAM-128", name: "Canal Street", lat: 38.873352, lng: -77.0130973, district: "d1" },
+    { id: "CAM-129", name: "2nd Street", lat: 38.8959906, lng: -77.0137534, district: "d1" },
+    { id: "CAM-130", name: "6th Street", lat: 38.8972684, lng: -77.0200633, district: "d1" },
+    { id: "CAM-131", name: "First Street", lat: 38.8747258, lng: -77.0122987, district: "d1" },
+    { id: "CAM-132", name: "Half Street", lat: 38.8747294, lng: -77.0107562, district: "d1" },
+    { id: "CAM-133", name: "North Capitol Street", lat: 38.9023892, lng: -77.0091985, district: "d1" },
+    { id: "CAM-134", name: "12th Street", lat: 38.8785778, lng: -76.9901778, district: "d1" },
+    { id: "CAM-135", name: "14th Street", lat: 38.8805891, lng: -76.9855176, district: "d1" },
+    { id: "CAM-136", name: "71 O St SW", lat: 38.8732842, lng: -77.0114152, district: "d1" },
+    { id: "CAM-137", name: "90 Q Street", lat: 38.8708457, lng: -77.01225, district: "d1" },
+    { id: "CAM-138", name: "New Jersey Avenue", lat: 38.8766087, lng: -77.0043995, district: "d1" },
+    { id: "CAM-139", name: "10th Street", lat: 38.9003063, lng: -76.9927845, district: "d1" },
+    { id: "CAM-140", name: "9th Street", lat: 38.902579, lng: -76.9938606, district: "d1" },
+    { id: "CAM-141", name: "13th Street", lat: 38.8792141, lng: -76.98848, district: "d1" },
+    { id: "CAM-142", name: "Half Steet", lat: 38.8719431, lng: -77.0105518, district: "d1" },
+    { id: "CAM-143", name: "11th Street", lat: 38.8860405, lng: -76.9915778, district: "d1" },
+    { id: "CAM-144", name: "1000 12th St SE", lat: 38.8779529, lng: -76.9900496, district: "d1" },
+    { id: "CAM-223", name: "17th Street", lat: 38.907294, lng: -77.038654, district: "d2" },
+    { id: "CAM-224", name: "3273 M Street", lat: 38.9050438, lng: -77.0649753, district: "d2" },
+    { id: "CAM-225", name: "3249 M Street", lat: 38.9052226, lng: -77.0643849, district: "d2" },
+    { id: "CAM-226", name: "3219 M Street", lat: 38.9052389, lng: -77.0635046, district: "d2" },
+    { id: "CAM-227", name: "3131 M Street", lat: 38.9052659, lng: -77.0620374, district: "d2" },
+    { id: "CAM-228", name: "3109 M Street", lat: 38.9052829, lng: -77.0615071, district: "d2" },
+    { id: "CAM-229", name: "3067 M Street", lat: 38.9052807, lng: -77.060884, district: "d2" },
+    { id: "CAM-230", name: "33rd Street", lat: 38.9050038, lng: -77.0659327, district: "d2" },
+    { id: "CAM-231", name: "3039 M Street", lat: 38.905296, lng: -77.0599857, district: "d2" },
+    { id: "CAM-232", name: "1237 Wisconsin Avenue", lat: 38.9060172, lng: -77.0627038, district: "d2" },
+    { id: "CAM-233", name: "1267 Wisconsin Avenue", lat: 38.9067227, lng: -77.0630733, district: "d2" },
+    { id: "CAM-234", name: "18th Street", lat: 38.9063604, lng: -77.041825, district: "d2" },
+    { id: "CAM-235", name: "19th Street", lat: 38.9055525, lng: -77.0432132, district: "d2" },
+    { id: "CAM-236", name: "Connecticut Avenue", lat: 38.9026299, lng: -77.0392421, district: "d2" },
+    { id: "CAM-237", name: "Wisconsin Avenue", lat: 38.9091918, lng: -77.0643997, district: "d2" },
+    { id: "CAM-238", name: "1350 Pennsylvania Avenue", lat: 38.8954034, lng: -77.0312465, district: "d2" },
+    { id: "CAM-239", name: "4502 Wisconsin Avenue", lat: 38.9482899, lng: -77.0801598, district: "d2" },
+    { id: "CAM-240", name: "Connecticut and Porter St NW", lat: 38.9367242, lng: -77.0589738, district: "d2" },
+    { id: "CAM-241", name: "Connecticut and Ordway St NW", lat: 38.9356401, lng: -77.058381, district: "d2" },
+    { id: "CAM-242", name: "3698 Calvert St NW", lat: 38.9224671, lng: -77.0730647, district: "d2" },
+    { id: "CAM-243", name: "Connecticut Ave NW and Calvert St NW", lat: 38.9236964, lng: -77.0517959, district: "d2" },
+    { id: "CAM-244", name: "1150 Connecticut Ave NW", lat: 38.9050898, lng: -77.0410445, district: "d2" },
+    { id: "CAM-245", name: "17th Street Northwest & L Street Northwest", lat: 38.9037562, lng: -77.0385114, district: "d2" },
+    { id: "CAM-246", name: "2222 I St NW", lat: 38.9004327, lng: -77.0498427, district: "d2" },
+    { id: "CAM-301", name: "1360 Irving Street", lat: 38.9281258, lng: -77.0318224, district: "d3" },
+    { id: "CAM-302", name: "1420 R Street", lat: 38.9126745, lng: -77.0329616, district: "d3" },
+    { id: "CAM-303", name: "14th St and U Street", lat: 38.9171009, lng: -77.0321408, district: "d3" },
+    { id: "CAM-304", name: "Kalorama Rd NW and Champlain Street", lat: 38.9200877, lng: -77.0409097, district: "d3" },
+    { id: "CAM-305", name: "Mt Pleasant Street", lat: 38.9286283, lng: -77.0374192, district: "d3" },
+    { id: "CAM-306", name: "Sherman Avenue", lat: 38.9269367, lng: -77.0257969, district: "d3" },
+    { id: "CAM-307", name: "Euclid Street", lat: 38.923167, lng: -77.0400985, district: "d3" },
+    { id: "CAM-308", name: "13th and U Streets", lat: 38.9168924, lng: -77.0294033, district: "d3" },
+    { id: "CAM-309", name: "1851 Columbia Road", lat: 38.9208375, lng: -77.043655, district: "d3" },
+    { id: "CAM-310", name: "T Street", lat: 38.9154722, lng: -77.0440298, district: "d3" },
+    { id: "CAM-311", name: "Park Road", lat: 38.9313484, lng: -77.0358765, district: "d3" },
+    { id: "CAM-312", name: "242 W St NW", lat: 38.9195605, lng: -77.0163436, district: "d3" },
+
+
+
+    { id: "CAM-401", name: "14th Street, NW and Oak Street, NW", lat: 38.9339179, lng: -77.0325838, district: "d4" },
+    { id: "CAM-402", name: "14th Street, NW and Parkwood Place, NW", lat: 38.935592, lng: -77.0326058, district: "d4" },
+    { id: "CAM-403", name: "14th Street, NW and Quincy Street, NW", lat: 38.9375384, lng: -77.0325808, district: "d4" },
+    { id: "CAM-404", name: "14th Street, NW and Monroe Street, NW", lat: 38.9314506, lng: -77.0326021, district: "d4" },
+    { id: "CAM-405", name: "1st Street, NW and Kennedy Street, NW", lat: 38.9565159, lng: -77.0115109, district: "d4" },
+    { id: "CAM-406", name: "4th Street, NW and Shepherd Street, NW", lat: 38.9398543, lng: -77.0170957, district: "d4" },
+    { id: "CAM-407", name: "521 Oglethorpe Street, NE (Rear of Unit)", lat: 38.9606432, lng: -77.0002668, district: "d4" },
+    { id: "CAM-408", name: "5th Street, NW and Kennedy Street, NW", lat: 38.9565353, lng: -77.0197754, district: "d4" },
+    { id: "CAM-409", name: "6th Street, NE and Oglethorpe Street, NE", lat: 38.9611903, lng: -76.9992398, district: "d4" },
+    { id: "CAM-410", name: "6th Street, NW and Newton Place, NW", lat: 38.9340129, lng: -77.0221383, district: "d4" },
+    { id: "CAM-411", name: "7th Street, NW and Kennedy Street, NW", lat: 38.9563036, lng: -77.0224514, district: "d4" },
+    { id: "CAM-412", name: "7th Street, NW and Longfellow Street, NW", lat: 38.95752, lng: -77.022311, district: "d4" },
+    { id: "CAM-413", name: "8th Street, NW and Jefferson Street, NW", lat: 38.9553643, lng: -77.0238556, district: "d4" },
+    { id: "CAM-414", name: "9th St and Kennedy Street, NW", lat: 38.9562126, lng: -77.0256446, district: "d4" },
+    { id: "CAM-415", name: "Colorado Avenue, NW and Kennedy Street, NW", lat: 38.9563379, lng: -77.0330496, district: "d4" },
+    { id: "CAM-416", name: "Crittenden Street, NW and New Hampshire Avenue, NW", lat: 38.9475748, lng: -77.0160645, district: "d4" },
+    { id: "CAM-417", name: "Georgia Avenue, NW and Morton Street, NW", lat: 38.9319217, lng: -77.0237512, district: "d4" },
+    { id: "CAM-418", name: "Georgia Avenue, NW and Randolph Street, NW", lat: 38.9387496, lng: -77.0248576, district: "d4" },
+    { id: "CAM-419", name: "14th Street, NW and Missouri Avenue, NW", lat: 38.9615286, lng: -77.0335601, district: "d4" },
+    { id: "CAM-420", name: "4th Street, NW and Cedar Street, NW", lat: 38.9746387, lng: -77.0179224, district: "d4" },
+    { id: "CAM-421", name: "7th Street, NW and Jefferson Street, NW", lat: 38.9552152, lng: -77.0221537, district: "d4" },
+    { id: "CAM-422", name: "8th Street, NW and Crittenden Street, NW", lat: 38.9473428, lng: -77.0237102, district: "d4" },
+    { id: "CAM-423", name: "Eastern Avenue, NE and Oglethorpe Street, NE", lat: 38.957923, lng: -76.9926174, district: "d4" },
+    { id: "CAM-424", name: "Georgia Avenue, NW and Decatur Street, NW", lat: 38.9481612, lng: -77.0270837, district: "d4" },
+    { id: "CAM-425", name: "Georgia Avenue, and New Hampshire Ave NW", lat: 38.9367028, lng: -77.0241419, district: "d4" },
+    { id: "CAM-426", name: "Georgia Avenue, NW and Rittenhouse Street, NW", lat: 38.9650701, lng: -77.0275652, district: "d4" },
+    { id: "CAM-427", name: "Princeton Place, NW and Warder Street, NW", lat: 38.9355124, lng: -77.0212378, district: "d4" },
+    { id: "CAM-428", name: "1st Street Northeast & Webster Street Northeast", lat: 38.9443069, lng: -77.0057357, district: "d4" },
+    { id: "CAM-429", name: "Kansas Avenue, NW and Spring Road, NW", lat: 38.9364339, lng: -77.0298606, district: "d4" },
+    { id: "CAM-430", name: "6th Street and Otis Place, NW", lat: 38.9347907, lng: -77.0221777, district: "d4" },
+    { id: "CAM-431", name: "Georgia Avenue, NW and Quincy Street, NW", lat: 38.9375145, lng: -77.0246093, district: "d4" },
+    { id: "CAM-432", name: "1st Street, NW and Farragut Street, NW", lat: 38.9509001, lng: -77.012218, district: "d4" },
+    { id: "CAM-433", name: "14th Street, NW and Arkansas Avenue, NW", lat: 38.9432341, lng: -77.0325496, district: "d4" },
+    { id: "CAM-434", name: "Georgia Avenue, NW and Dahlia Street, NW", lat: 38.9756786, lng: -77.0265619, district: "d4" },
+    { id: "CAM-435", name: "Georgia Avenue, NW, and Newton Place, NW", lat: 38.9336937, lng: -77.0240299, district: "d4" },
+
+    { id: "CAM-313", name: "11th Street, NW and M Street, NW", lat: 38.9055139, lng: -77.0268461, district: "d3" },
+    { id: "CAM-314", name: "11th Street, NW and U Street, NW", lat: 38.9168801, lng: -77.026906, district: "d3" },
+    { id: "CAM-315", name: "1360 Irving Street, NW", lat: 38.9281258, lng: -77.0318224, district: "d3" },
+    { id: "CAM-316", name: "1420 R Street, NW", lat: 38.9126745, lng: -77.0329616, district: "d3" },
+    { id: "CAM-317", name: "14th Street, NW and Irving Street, NW", lat: 38.9288037, lng: -77.0324908, district: "d3" },
+    { id: "CAM-318", name: "14th Street, NW and Columbia Rd NW", lat: 38.9274392, lng: -77.032333, district: "d3" },
+    { id: "CAM-319", name: "14th Street, NW and Girard Street, NW", lat: 38.9257312, lng: -77.0324708, district: "d3" },
+    { id: "CAM-320", name: "14th St and U Street, NW", lat: 38.9171009, lng: -77.0321408, district: "d3" },
+    { id: "CAM-321", name: "14th Street, NW and Fairmont Street, NW", lat: 38.9244431, lng: -77.0323308, district: "d3" },
+    { id: "CAM-322", name: "15th Street, NW and 16th Street, NW", lat: 38.9289653, lng: -77.0362631, district: "d3" },
+    { id: "CAM-323", name: "17th Street, NW and Euclid Street, NW", lat: 38.9230744, lng: -77.0390599, district: "d3" },
+    { id: "CAM-324", name: "18th Street, NW and Columbia Rd NW", lat: 38.9226849, lng: -77.0428731, district: "d3" },
+    { id: "CAM-325", name: "2nd Street, NW and V Street, NW", lat: 38.9181323, lng: -77.0147208, district: "d3" },
+    { id: "CAM-326", name: "5th Street, NW and N Street, NW", lat: 38.9071326, lng: -77.0190469, district: "d3" },
+    { id: "CAM-327", name: "5th Street, NW and O Street, NW", lat: 38.9086357, lng: -77.0190293, district: "d3" },
+    { id: "CAM-328", name: "7th Street, NW and O Street, NW", lat: 38.9084544, lng: -77.0216783, district: "d3" },
+    { id: "CAM-329", name: "8th Street, NW and O Street, NW", lat: 38.9084421, lng: -77.0228393, district: "d3" },
+    { id: "CAM-330", name: "8th Street, NW and R Street, NW", lat: 38.9125308, lng: -77.0228278, district: "d3" },
+    { id: "CAM-331", name: "9th Street, NW and T Street, NW", lat: 38.9156353, lng: -77.0238287, district: "d3" },
+    { id: "CAM-332", name: "9th Street, NW and U Street, NW", lat: 38.9168703, lng: -77.0240812, district: "d3" },
+    { id: "CAM-333", name: "Kalorama Rd NW and Champlain Street, NW", lat: 38.9200877, lng: -77.0409097, district: "d3" },
+    { id: "CAM-334", name: "Mt Pleasant Street, NW and Irving Street, NW", lat: 38.9286283, lng: -77.0374192, district: "d3" },
+    { id: "CAM-335", name: "North Capitol Street, NE and New York Avenue, NW", lat: 38.9075091, lng: -77.0092193, district: "d3" },
+    { id: "CAM-336", name: "North Capitol Street, NW and Quincy Place, NW", lat: 38.9117814, lng: -77.0092093, district: "d3" },
+    { id: "CAM-337", name: "Sherman Avenue, NW and Harvard Street, NW", lat: 38.9269367, lng: -77.0257969, district: "d3" },
+    { id: "CAM-338", name: "14th Street, NW and V Street, NW", lat: 38.9180319, lng: -77.0320922, district: "d3" },
+    { id: "CAM-339", name: "9th Street, NW and Westminster Street, NW", lat: 38.9148837, lng: -77.02407, district: "d3" },
+    { id: "CAM-340", name: "7th Street, NW and T Street, NW", lat: 38.9156677, lng: -77.0217865, district: "d3" },
+    { id: "CAM-341", name: "Euclid Street, NW and Ontario Road, NW", lat: 38.923167, lng: -77.0400985, district: "d3" },
+    { id: "CAM-342", name: "13th and U Streets, NW", lat: 38.9168924, lng: -77.0294033, district: "d3" },
+    { id: "CAM-343", name: "1851 Columbia Road, NW", lat: 38.9208375, lng: -77.043655, district: "d3" },
+    { id: "CAM-344", name: "T Street, NW and Florida Avenue, NW", lat: 38.9154722, lng: -77.0440298, district: "d3" },
+    { id: "CAM-345", name: "Park Road, NW and Pine Street, NW", lat: 38.9313484, lng: -77.0358765, district: "d3" },
+    { id: "CAM-346", name: "5th Street, NW and W Street, NW", lat: 38.9191914, lng: -77.0189822, district: "d3" },
+    { id: "CAM-347", name: "2nd Street, NW and Bryant Street, NW", lat: 38.9207312, lng: -77.0149086, district: "d3" },
+    { id: "CAM-348", name: "14th Street, NW and Park Road, NW", lat: 38.9304218, lng: -77.0328303, district: "d3" },
+    { id: "CAM-501", name: "10th Street, NE and Otis Street, NE", lat: 38.9345397, lng: -76.9928676, district: "d5" },
+    { id: "CAM-502", name: "Montello Avenue, NE and Meigs Place, NE", lat: 38.9083823, lng: -76.986333, district: "d5" },
+    { id: "CAM-503", name: "14th Street, NE and Saratoga Avenue, NE", lat: 38.9223208, lng: -76.9860642, district: "d5" },
+    { id: "CAM-504", name: "14th Street, NE and Montana Avenue, NE", lat: 38.9242989, lng: -76.9852189, district: "d5" },
+    { id: "CAM-505", name: "15th Street and Benning Road, NE", lat: 38.8999941, lng: -76.9834766, district: "d5" },
+    { id: "CAM-506", name: "15th Street, NE and Downing Street, NE", lat: 38.9220275, lng: -76.9839047, district: "d5" },
+    { id: "CAM-507", name: "1635 Benning Road, NE", lat: 38.8994414, lng: -76.9802441, district: "d5" },
+    { id: "CAM-508", name: "16th Street, NE and Levis Street, NE", lat: 38.9044195, lng: -76.9818234, district: "d5" },
+    { id: "CAM-509", name: "17th Street, NE and L Street, NE", lat: 38.9036178, lng: -76.9788676, district: "d5" },
+    { id: "CAM-510", name: "19th Street, NE and Benning Road, NE", lat: 38.8988094, lng: -76.9766068, district: "d5" },
+    { id: "CAM-511", name: "18th Street, NE and D Street, NE", lat: 38.894711, lng: -76.9789057, district: "d5" },
+    { id: "CAM-512", name: "18th Place, NE and M Street, NE", lat: 38.9056991, lng: -76.9772883, district: "d5" },
+    { id: "CAM-513", name: "18th Street, NE and Otis Street, NE", lat: 38.9349952, lng: -76.9798905, district: "d5" },
+    { id: "CAM-514", name: "19th Street, NE and I Street, NE", lat: 38.9018453, lng: -76.9763149, district: "d5" },
+    { id: "CAM-515", name: "19th Street, NE and L Street, NE", lat: 38.9036214, lng: -76.9763183, district: "d5" },
+    { id: "CAM-516", name: "21st Street, NE and I Street, NE", lat: 38.90262, lng: -76.9743049, district: "d5" },
+    { id: "CAM-517", name: "12th Street, NE and Perry Street, NE", lat: 38.9360958, lng: -76.9911314, district: "d5" },
+    { id: "CAM-518", name: "16th Street, NE and E Street, NE", lat: 38.8961349, lng: -76.9822839, district: "d5" },
+    { id: "CAM-519", name: "4th Street, NE and Bryant Street, NE", lat: 38.9212212, lng: -77.0004577, district: "d5" },
+    { id: "CAM-520", name: "4th Street, NE and W Street, NE", lat: 38.9192609, lng: -77.0004255, district: "d5" },
+    { id: "CAM-521", name: "6th Street, NE and L Street, NE", lat: 38.9036478, lng: -76.998547, district: "d5" },
+    { id: "CAM-522", name: "6th Street, NE and Edgewood Street, NE", lat: 38.9241298, lng: -76.998332, district: "d5" },
+    { id: "CAM-523", name: "765 19th Street, NE", lat: 38.8991905, lng: -76.9761477, district: "d5" },
+    { id: "CAM-524", name: "Bladensburg NE and Maryland Avenue, NE", lat: 38.9002201, lng: -76.9829902, district: "d5" },
+    { id: "CAM-525", name: "Capitol Avenue, NE and Central Place, NE", lat: 38.9116156, lng: -76.9851143, district: "d5" },
+    { id: "CAM-526", name: "Gallaudet Street, NE and Kendall Street, NE", lat: 38.9131309, lng: -76.9869076, district: "d5" },
+    { id: "CAM-527", name: "19th Street, NE and H Street, NE", lat: 38.9002608, lng: -76.9763592, district: "d5" },
+    { id: "CAM-528", name: "Holbrook Street, NE and Neal Street, NE", lat: 38.9023924, lng: -76.9840584, district: "d5" },
+    { id: "CAM-529", name: "Lincoln Road, NE and Randolph Place, NE", lat: 38.9134379, lng: -77.0083672, district: "d5" },
+    { id: "CAM-530", name: "21st Street, NE and Maryland Avenue, NE", lat: 38.9039419, lng: -76.9743136, district: "d5" },
+    { id: "CAM-531", name: "Maryland Avenue, NE and Neal Street, NE", lat: 38.9010478, lng: -76.9808947, district: "d5" },
+    { id: "CAM-532", name: "Montello Avenue, NE and Morse Street, NE", lat: 38.9037612, lng: -76.9895554, district: "d5" },
+    { id: "CAM-533", name: "Montello Avenue, NE and Mt Olivet Road, NE", lat: 38.9101582, lng: -76.9851234, district: "d5" },
+    { id: "CAM-534", name: "Montello Avenue, NE and Queen Street, NE", lat: 38.9071222, lng: -76.987035, district: "d5" },
+    { id: "CAM-535", name: "Staples Street, NE and Oates Street, NE", lat: 38.9036899, lng: -76.983927, district: "d5" },
+    { id: "CAM-536", name: "Trinidad Avenue, NE and Meigs Place, NE", lat: 38.9070924, lng: -76.9836482, district: "d5" },
+    { id: "CAM-537", name: "Trinidad Avenue, NE and Simms Place, NE", lat: 38.908533, lng: -76.9826713, district: "d5" },
+    { id: "CAM-538", name: "West Virginia Avenue, NE and Mt Olivet Road, NE", lat: 38.9104495, lng: -76.9859965, district: "d5" },
+    { id: "CAM-539", name: "West Virginia Avenue, NE and Neal Street, NE", lat: 38.9057132, lng: -76.9912913, district: "d5" },
+    { id: "CAM-540", name: "North Capitol Street, NW and P Street, NW", lat: 38.9095496, lng: -77.00917, district: "d5" },
+    { id: "CAM-541", name: "18th Street, NE and Benning Road, NE", lat: 38.8992659, lng: -76.9776109, district: "d5" },
+    { id: "CAM-542", name: "20th Street, NE and I Street, NE", lat: 38.9024621, lng: -76.9751878, district: "d5" },
+    { id: "CAM-543", name: "5th Street, NE and Florida Avenue, NE", lat: 38.9068926, lng: -76.9995198, district: "d5" },
+    { id: "CAM-544", name: "1365 Okie Street, NE", lat: 38.9144228, lng: -76.985246, district: "d5" },
+    { id: "CAM-545", name: "1523 F Street, NE", lat: 38.8959483, lng: -76.9828515, district: "d5" },
+    { id: "CAM-546", name: "1655 11th Place, NE", lat: 38.9092723, lng: -76.9864259, district: "d5" },
+    { id: "CAM-547", name: "Eckington Place, NE and Harry Thomas Way, NE", lat: 38.910542, lng: -77.0050668, district: "d5" },
+    { id: "CAM-548", name: "21st Street, NE and Benning Road, NE", lat: 38.8986898, lng: -76.9740815, district: "d5" },
+    { id: "CAM-549", name: "Bladensburg Road, NE and New York Avenue, NE", lat: 38.9177848, lng: -76.9722674, district: "d5" },
+    { id: "CAM-550", name: "4th Street, NE and Morse Street, NE", lat: 38.9079235, lng: -76.9997623, district: "d5" },
+    { id: "CAM-551", name: "Orren Street, NE and Neal Street, NE", lat: 38.9030607, lng: -76.9852922, district: "d5" },
+    { id: "CAM-552", name: "P Street, NE and Florida Avenue, NE", lat: 38.9099128, lng: -77.0066496, district: "d5" },
+    { id: "CAM-553", name: "Reed Street, NE and Rhode Island Avenue, NE", lat: 38.921951, lng: -76.993572, district: "d5" },
+    { id: "CAM-601", name: "14th Street, SE and Marion Barry Ave, SE", lat: 38.866851, lng: -76.9851974, district: "d6" },
+    { id: "CAM-602", name: "1535 Kenilworth Avenue, NE", lat: 38.9106817, lng: -76.9353041, district: "d6" },
+    { id: "CAM-603", name: "17th Place, SE and R Street, SE", lat: 38.869425, lng: -76.9798522, district: "d6" },
+    { id: "CAM-604", name: "18th Street, SE and T Street, SE", lat: 38.8674053, lng: -76.9790973, district: "d6" },
+    { id: "CAM-605", name: "18th Street, SE and Q Street, SE", lat: 38.8708106, lng: -76.9791115, district: "d6" },
+    { id: "CAM-606", name: "19th Street, SE and Q Street, SE", lat: 38.870837, lng: -76.9772966, district: "d6" },
+    { id: "CAM-607", name: "266 37th Place SE", lat: 38.8862974, lng: -76.9514785, district: "d6" },
+    { id: "CAM-608", name: "306 37th Street, SE", lat: 38.8851525, lng: -76.9529418, district: "d6" },
+    { id: "CAM-609", name: "314 50th Street, NE", lat: 38.8943631, lng: -76.929327, district: "d6" },
+    { id: "CAM-610", name: "34th Street, SE and A Street, SE", lat: 38.8888458, lng: -76.957452, district: "d6" },
+    { id: "CAM-611", name: "3520 East Capitol Street, NE", lat: 38.8899771, lng: -76.9550832, district: "d6" },
+    { id: "CAM-612", name: "35th Street, NE and Ames Street, NE", lat: 38.8905835, lng: -76.9550908, district: "d6" },
+    { id: "CAM-613", name: "36th Street, SE and B Street, SE", lat: 38.8875238, lng: -76.9545172, district: "d6" },
+    { id: "CAM-614", name: "37th Street, SE and 37th Place, SE", lat: 38.887067, lng: -76.9524398, district: "d6" },
+    { id: "CAM-615", name: "Minnesota Avenue, NE and Blaine Street, NE", lat: 38.8924079, lng: -76.9513724, district: "d6" },
+    { id: "CAM-616", name: "4409 F Street, SE", lat: 38.8817174, lng: -76.9384651, district: "d6" },
+    { id: "CAM-617", name: "4520 Quarles Street, NE", lat: 38.911565, lng: -76.9360863, district: "d6" },
+    { id: "CAM-618", name: "4647 Hillside Road, SE", lat: 38.8764097, lng: -76.931668, district: "d6" },
+    { id: "CAM-619", name: "4721 Alabama Avenue, SE", lat: 38.8809832, lng: -76.9392013, district: "d6" },
+    { id: "CAM-620", name: "507 50th Place, NE", lat: 38.8961216, lng: -76.9281619, district: "d6" },
+    { id: "CAM-621", name: "51st Street Southeast & Call Place Southeast", lat: 38.8842315, lng: -76.9284655, district: "d6" },
+    { id: "CAM-622", name: "H Street, SE and Benning Road, SE", lat: 38.8785905, lng: -76.9314494, district: "d6" },
+    { id: "CAM-623", name: "50th Street, NE and Banks Place, NE", lat: 38.8934996, lng: -76.9298945, district: "d6" },
+    { id: "CAM-624", name: "51 Street, SE and E Street, SE", lat: 38.8822261, lng: -76.9288377, district: "d6" },
+    { id: "CAM-625", name: "51st Street, SE and Fitch Street, SE", lat: 38.8805733, lng: -76.9294572, district: "d6" },
+    { id: "CAM-626", name: "51st Street, NE and Cloud Place, NE", lat: 38.8946656, lng: -76.9280989, district: "d6" },
+    { id: "CAM-627", name: "51st Street, SE and F Street, SE", lat: 38.8817227, lng: -76.9292012, district: "d6" },
+    { id: "CAM-628", name: "51st Street, SE and H Street, SE", lat: 38.8784799, lng: -76.9301353, district: "d6" },
+    { id: "CAM-629", name: "51st Street, SE and Queens Stroll PLACE, SE", lat: 38.882928, lng: -76.9289619, district: "d6" },
+    { id: "CAM-630", name: "5206 Clay Street, NE", lat: 38.8936566, lng: -76.9267107, district: "d6" },
+    { id: "CAM-631", name: "52nd St and Just Street, NE", lat: 38.902906, lng: -76.9250369, district: "d6" },
+    { id: "CAM-632", name: "5353 Clay Terrace NE", lat: 38.8938013, lng: -76.9241445, district: "d6" },
+    { id: "CAM-633", name: "5321 Dix Street, NE (Parking Lot)", lat: 38.894887, lng: -76.923929, district: "d6" },
+    { id: "CAM-634", name: "53rd Street, NE and Dix Street, NE", lat: 38.89497, lng: -76.9246146, district: "d6" },
+    { id: "CAM-635", name: "54th Street, NE and Dix Street, NE", lat: 38.8947222, lng: -76.9227154, district: "d6" },
+    { id: "CAM-636", name: "55th NE and Blaine Street, NE", lat: 38.8911954, lng: -76.9227168, district: "d6" },
+    { id: "CAM-637", name: "610 46th Place, SE", lat: 38.8816195, lng: -76.9357286, district: "d6" },
+    { id: "CAM-638", name: "60th St and Dix Street, NE", lat: 38.8945617, lng: -76.9149214, district: "d6" },
+    { id: "CAM-639", name: "6220 Banks Place, NE", lat: 38.8920392, lng: -76.9118934, district: "d6" },
+    { id: "CAM-640", name: "50th Street, SE and C Street, SE", lat: 38.8852633, lng: -76.930769, district: "d6" },
+    { id: "CAM-641", name: "33rd Street, NE and Clay Street, NE", lat: 38.8934969, lng: -76.9593029, district: "d6" },
+    { id: "CAM-642", name: "Division Avenue, NE and Foote Street, NE", lat: 38.8970822, lng: -76.9259949, district: "d6" },
+    { id: "CAM-643", name: "45th Street, NE and Douglas Street, NE", lat: 38.9103178, lng: -76.9378402, district: "d6" },
+    { id: "CAM-644", name: "56th Place, SE and East Capitol STREET, SE", lat: 38.8896207, lng: -76.9208062, district: "d6" },
+    { id: "CAM-645", name: "Benning Road, SE and East Capitol Street, SE", lat: 38.8895404, lng: -76.9376391, district: "d6" },
+    { id: "CAM-646", name: "Central Avenue, NE and East Capitol Street, NE", lat: 38.890136, lng: -76.9312545, district: "d6" },
+    { id: "CAM-647", name: "53rd Street, SE and Fitch Street, SE", lat: 38.8808894, lng: -76.9270821, district: "d6" },
+    { id: "CAM-648", name: "Kenilworth Terrace NE and Jay Street, NE", lat: 38.9021986, lng: -76.9457067, district: "d6" },
+    { id: "CAM-649", name: "Minnesota Avenue, NE and Ames Street, NE", lat: 38.8905965, lng: -76.9526752, district: "d6" },
+    { id: "CAM-650", name: "Minnesota Avenue, NE and Clay Place, NE", lat: 38.8932666, lng: -76.9504058, district: "d6" },
+    { id: "CAM-651", name: "Minnesota Avenue, NE and Gault Place, NE", lat: 38.8990947, lng: -76.9463127, district: "d6" },
+    { id: "CAM-652", name: "Minnesota Avenue, NE and Dix Street, NE", lat: 38.8937947, lng: -76.9503082, district: "d6" },
+    { id: "CAM-653", name: "Minnesota Avenue and Marion Barry Ave, SE.", lat: 38.8666815, lng: -76.9841113, district: "d6" },
+    { id: "CAM-654", name: "Division Avenue, NE and Nannie Helen Burroughs Avenue, NE", lat: 38.8982495, lng: -76.925852, district: "d6" },
+    { id: "CAM-655", name: "29th Street, SE and Q Street, SE", lat: 38.8706734, lng: -76.9658801, district: "d6" },
+    { id: "CAM-656", name: "4471 Ponds Street, NE (rear parking lot)", lat: 38.9108284, lng: -76.9378555, district: "d6" },
+    { id: "CAM-657", name: "Ridge Road, SE and Bay Lane, SE", lat: 38.8870517, lng: -76.9503766, district: "d6" },
+    { id: "CAM-658", name: "Division Avenue, NE and Sheriff Road, NE", lat: 38.9038124, lng: -76.9238355, district: "d6" },
+    { id: "CAM-659", name: "4708 Alabama Avenue, SE (rear parking lot)", lat: 38.8807526, lng: -76.9399888, district: "d6" },
+    { id: "CAM-660", name: "Ridge Road, SE and B Street, SE", lat: 38.8883598, lng: -76.9515619, district: "d6" },
+    { id: "CAM-661", name: "2667 Marion Barry Ave SE", lat: 38.8599545, lng: -76.9676017, district: "d6" },
+    { id: "CAM-662", name: "3675 Jay  Street, NE", lat: 38.9061359, lng: -76.9493137, district: "d6" },
+    { id: "CAM-663", name: "44th Street, NE and Blaine Street, NE", lat: 38.8918301, lng: -76.9391323, district: "d6" },
+    { id: "CAM-664", name: "Minnesota Avenue, SE and Nash Place, SE", lat: 38.8756755, lng: -76.9667853, district: "d6" },
+    { id: "CAM-665", name: "Minnesota Avenue, SE and Pennsylvania Avenue, SE", lat: 38.8735926, lng: -76.9715992, district: "d6" },
+    { id: "CAM-666", name: "Ely Place, SE and Anacostia Road, SE", lat: 38.8835576, lng: -76.9563242, district: "d6" },
+    { id: "CAM-667", name: "Texas Avenue, SE and F Street, SE", lat: 38.8822154, lng: -76.9430101, district: "d6" },
+    { id: "CAM-668", name: "208 Kenilworth Avenue, NE", lat: 38.8920026, lng: -76.9566158, district: "d6" },
+    { id: "CAM-669", name: "3519 Jay Street, NE", lat: 38.9068057, lng: -76.9495732, district: "d6" },
+    { id: "CAM-670", name: "342 37th Street, SE", lat: 38.8842251, lng: -76.9519642, district: "d6" },
+    { id: "CAM-671", name: "3721 Jay Street, NE", lat: 38.905205, lng: -76.9487733, district: "d6" },
+    { id: "CAM-672", name: "Minnesota Avenue, NE and Benning Road, NE", lat: 38.8951485, lng: -76.9489876, district: "d6" },
+    { id: "CAM-673", name: "Southern Avenue, SE and Central Avenue, SE", lat: 38.8858269, lng: -76.9186547, district: "d6" },
+    { id: "CAM-674", name: "Anacostia Avenue, NE and Hayes Street, NE", lat: 38.9026643, lng: -76.9495889, district: "d6" },
+    { id: "CAM-675", name: "Parkside Place, NE and Hayes Street, NE", lat: 38.9014598, lng: -76.9481648, district: "d6" },
+    { id: "CAM-676", name: "Minnesota Avenue, SE and 16th Street, SE", lat: 38.8677919, lng: -76.9823588, district: "d6" },
+    { id: "CAM-677", name: "Minnesota Avenue, SE and Randle Circle, SE", lat: 38.8785066, lng: -76.9612995, district: "d6" },
+    { id: "CAM-678", name: "33rd Street, SE and Dubois Place, SE", lat: 38.8853159, lng: -76.9599387, district: "d6" },
+    { id: "CAM-701", name: "10th Place, SE and Congress Street, SE", lat: 38.8411204, lng: -76.9918068, district: "d7" },
+    { id: "CAM-702", name: "1331 Alabama Avenue, SE", lat: 38.844829, lng: -76.9873904, district: "d7" },
+    { id: "CAM-703", name: "13th Place, SE and Congress Street, SE", lat: 38.8419809, lng: -76.9874827, district: "d7" },
+    { id: "CAM-704", name: "16th St and U Street, SE", lat: 38.8652805, lng: -76.982298, district: "d7" },
+    { id: "CAM-705", name: "16th Street, SE and W Street, SE", lat: 38.8636752, lng: -76.9825791, district: "d7" },
+    { id: "CAM-706", name: "21st Street, SE and Bruce Place, SE", lat: 38.8510261, lng: -76.9754514, district: "d7" },
+    { id: "CAM-707", name: "22nd Street, SE and Savannah Place, SE", lat: 38.8500949, lng: -76.9741407, district: "d7" },
+    { id: "CAM-708", name: "2310 Ainger Place, SE", lat: 38.8578504, lng: -76.9731024, district: "d7" },
+    { id: "CAM-709", name: "2344 Pitts Place SE", lat: 38.8597519, lng: -76.9855844, district: "d7" },
+    { id: "CAM-710", name: "23rd Place, SE and Hartford Street, SE", lat: 38.8542134, lng: -76.9734515, district: "d7" },
+    { id: "CAM-711", name: "2450 Elvans Road, SE", lat: 38.8541236, lng: -76.9882388, district: "d7" },
+    { id: "CAM-712", name: "2434 Elvans Road, SE", lat: 38.854112, lng: -76.9869736, district: "d7" },
+    { id: "CAM-713", name: "24th Place, SE and Hartford Street, SE", lat: 38.853985, lng: -76.9713476, district: "d7" },
+    { id: "CAM-714", name: "2500 Pomeroy Road, SE", lat: 38.8552601, lng: -76.9894386, district: "d7" },
+    { id: "CAM-715", name: "Birney Place SE and Pomeroy Road, SE", lat: 38.8569145, lng: -76.9969748, district: "d7" },
+    { id: "CAM-716", name: "2757 Martin Luther King Jr Avenue, SE", lat: 38.846549, lng: -76.9961833, district: "d7" },
+    { id: "CAM-717", name: "28th Street, SE and Jasper Street, SE", lat: 38.8512125, lng: -76.9680924, district: "d7" },
+    { id: "CAM-718", name: "347 Parkland Place, SE", lat: 38.8446043, lng: -76.9996661, district: "d7" },
+    { id: "CAM-719", name: "30th Street, SE and Naylor Road, SE", lat: 38.8548115, lng: -76.9658159, district: "d7" },
+    { id: "CAM-720", name: "3222 10th Place, SE", lat: 38.8433091, lng: -76.9922398, district: "d7" },
+    { id: "CAM-721", name: "3511 Wheeler Road, SE", lat: 38.8392934, lng: -76.9936664, district: "d7" },
+    { id: "CAM-722", name: "3916 South Capitol Street, SE", lat: 38.8325621, lng: -77.0081595, district: "d7" },
+    { id: "CAM-723", name: "6th Street, SE and Chesapeake Street, SE", lat: 38.8291381, lng: -76.9985493, district: "d7" },
+    { id: "CAM-724", name: "4th Street, SE and Livingston Terrace SE", lat: 38.8271863, lng: -77.0007834, district: "d7" },
+    { id: "CAM-725", name: "4th Street, SE and Galveston Place, SE", lat: 38.8246547, lng: -76.9994805, district: "d7" },
+    { id: "CAM-726", name: "4225 7th Street, SE", lat: 38.8271322, lng: -76.9975665, district: "d7" },
+    { id: "CAM-727", name: "4632 Livingston Road, SE", lat: 38.8228067, lng: -77.0020102, district: "d7" },
+    { id: "CAM-728", name: "4680 Martin Luther King Jr Ave SW", lat: 38.8210554, lng: -77.0108474, district: "d7" },
+    { id: "CAM-729", name: "4th Street, SE and Chesapeake Street, SE", lat: 38.8292741, lng: -77.0006137, district: "d7" },
+    { id: "CAM-730", name: "4th Street, SE and Condon Terrace SE", lat: 38.8313904, lng: -77.0004076, district: "d7" },
+    { id: "CAM-731", name: "5th Street, SE and Newcomb Street, SE", lat: 38.8465677, lng: -77.0002899, district: "d7" },
+    { id: "CAM-732", name: "707 Yuma Street, SE", lat: 38.8320533, lng: -76.9964123, district: "d7" },
+    { id: "CAM-733", name: "7th Street, SE and Barnaby Road, SE", lat: 38.8266463, lng: -76.9970457, district: "d7" },
+    { id: "CAM-734", name: "9th Street, SE and Barnaby Street, SE", lat: 38.8322183, lng: -76.9908937, district: "d7" },
+    { id: "CAM-735", name: "820 Chesapeake Street, SE", lat: 38.8292746, lng: -76.992481, district: "d7" },
+    { id: "CAM-736", name: "8th Street, SE and Alabama Avenue, SE", lat: 38.8433819, lng: -76.9952325, district: "d7" },
+    { id: "CAM-737", name: "8th Street, SE and Yuma Street, SE", lat: 38.8318983, lng: -76.9945157, district: "d7" },
+    { id: "CAM-738", name: "913 Wahler Place, SE", lat: 38.833958, lng: -76.9916711, district: "d7" },
+    { id: "CAM-739", name: "Ainger Place, SE and Langston Place, SE", lat: 38.8569128, lng: -76.97165, district: "d7" },
+    { id: "CAM-740", name: "Ainger Place, SE and Bruce Place, SE", lat: 38.8581701, lng: -76.9735748, district: "d7" },
+    { id: "CAM-741", name: "Alabama Avenue, SE and Frederick Douglass Place, SE", lat: 38.850218, lng: -76.9763248, district: "d7" },
+    { id: "CAM-742", name: "Alabama Avenue, SE and Stanton Road, SE", lat: 38.8467745, lng: -76.9803729, district: "d7" },
+    { id: "CAM-743", name: "Alabama Avenue, SE and Stanton Terrace, SE", lat: 38.8475969, lng: -76.9791834, district: "d7" },
+    { id: "CAM-744", name: "Elvans Road, SE and Stanton Road, SE", lat: 38.8545982, lng: -76.9861924, district: "d7" },
+    { id: "CAM-745", name: "Martin Luther King Jr Avenue, SE and Malcolm X Avenue, SE", lat: 38.8452032, lng: -76.9974965, district: "d7" },
+    { id: "CAM-746", name: "Martin Luther King Jr Avenue, SE and Mellon Street, SE", lat: 38.8456442, lng: -76.996854, district: "d7" },
+    { id: "CAM-747", name: "Martin Luther King Jr Avenue, SE and Raleigh Street, SE", lat: 38.8438998, lng: -76.9988236, district: "d7" },
+    { id: "CAM-748", name: "Martin Luther King Jr Avenue, SE and Randle Place, SE", lat: 38.8440288, lng: -76.9980104, district: "d7" },
+    { id: "CAM-749", name: "Martin Luther King Jr Avenue, SE and Talbert Street, SE", lat: 38.8628976, lng: -76.9922048, district: "d7" },
+    { id: "CAM-750", name: "Martin Luther King Jr Avenue, SE and Galveston Pl SW", lat: 38.8243958, lng: -77.0123429, district: "d7" },
+    { id: "CAM-751", name: "Payne Terrace SE and Maple View Place, SE", lat: 38.8625055, lng: -76.9892755, district: "d7" },
+    { id: "CAM-752", name: "South Capitol Terrace SW and Darrington Street, SW", lat: 38.8267808, lng: -77.0086259, district: "d7" },
+    { id: "CAM-753", name: "South Capitol Terrace SW and Atlantic Street, SW", lat: 38.8316423, lng: -77.0092444, district: "d7" },
+    { id: "CAM-754", name: "Sumner Road, SE and Wade Road, SE", lat: 38.8600795, lng: -76.9965542, district: "d7" },
+    { id: "CAM-755", name: "Waclark Place, SE and Parkland Place, SE", lat: 38.8446334, lng: -77.0017266, district: "d7" },
+    { id: "CAM-756", name: "Wade Road, SE and Eaton Road, SE", lat: 38.8589851, lng: -76.9972449, district: "d7" },
+    { id: "CAM-757", name: "Wayne Place, SE and Mississippi Avenue, SE", lat: 38.8343102, lng: -77.0037767, district: "d7" },
+    { id: "CAM-758", name: "Wheeler Road, SE and Bellevue Street, SE", lat: 38.832692, lng: -76.9880723, district: "d7" },
+    { id: "CAM-759", name: "13th Street, SE and Congress Streets, SE", lat: 38.8419485, lng: -76.9885875, district: "d7" },
+    { id: "CAM-760", name: "25th Street Southeast & Savannah Street Southeast", lat: 38.8482892, lng: -76.9692634, district: "d7" },
+    { id: "CAM-761", name: "Atlantic Avenue, SE and Valley Avenue, SE", lat: 38.8310644, lng: -77.0032815, district: "d7" },
+    { id: "CAM-762", name: "Stanton Road, SE and Sheridan Road, SE", lat: 38.8585082, lng: -76.9932025, district: "d7" },
+    { id: "CAM-763", name: "3939 Martin Luther King Jr., Avenue, SW", lat: 38.8328905, lng: -77.008582, district: "d7" },
+    { id: "CAM-764", name: "Forrester and Galveston Place, SW", lat: 38.8250973, lng: -77.0078866, district: "d7" },
+    { id: "CAM-765", name: "Sayles Place and Bowen Road, SE", lat: 38.8590741, lng: -76.9926953, district: "d7" },
+    { id: "CAM-766", name: "Green Street, SE and Galen Street, SE", lat: 38.8626621, lng: -76.9816492, district: "d7" },
+    { id: "CAM-767", name: "425 Chesapeake Street, SE", lat: 38.829154, lng: -76.9995064, district: "d7" },
+    { id: "CAM-768", name: "Martin Luther King, Jr. Avenue and Redwood Street, SE", lat: 38.8532107, lng: -76.9958285, district: "d7" },
+    { id: "CAM-769", name: "South Capitol and Atlantic Streets, SE", lat: 38.8313492, lng: -77.0078561, district: "d7" },
+    { id: "CAM-770", name: "4307 3rd St SE", lat: 38.8294946, lng: -77.001934, district: "d7" },
+    { id: "CAM-771", name: "South Capitol Street, SE and Southern Avenue, SE", lat: 38.8212616, lng: -77.0014754, district: "d7" },
+    { id: "CAM-772", name: "2510 Elvans Road, SE", lat: 38.8542343, lng: -76.9893643, district: "d7" },
+    { id: "CAM-773", name: "1641 W Street, SE", lat: 38.863244, lng: -76.9809854, district: "d7" },
+
+    { id: "CAM-145", name: "3rd Street, SE and I Street, SE", lat: 38.8793954, lng: -77.0021081, district: "d1" },
+    { id: "CAM-146", name: "3rd Street, SW and O Street, SW", lat: 38.873025, lng: -77.0150929, district: "d1" },
+    { id: "CAM-147", name: "5th Street, NW and K Street, NW", lat: 38.9026385, lng: -77.0188187, district: "d1" },
+    { id: "CAM-148", name: "5th Street, NE and H Street, NE", lat: 38.9001563, lng: -76.9993267, district: "d1" },
+    { id: "CAM-149", name: "7th Street, NW and H Street, NW", lat: 38.8997439, lng: -77.0220649, district: "d1" },
+    { id: "CAM-150", name: "8th Street, NE and H Street, NE", lat: 38.9001172, lng: -76.9951703, district: "d1" },
+    { id: "CAM-151", name: "Canal Street, SW and Delaware Avenue, SW", lat: 38.873352, lng: -77.0130973, district: "d1" },
+    { id: "CAM-152", name: "2nd Street, NW and E Street, NW", lat: 38.8959906, lng: -77.0137534, district: "d1" },
+    { id: "CAM-153", name: "6th Street, NW and F Street, NW", lat: 38.8972684, lng: -77.0200633, district: "d1" },
+    { id: "CAM-154", name: "6th Street, NW and H Street, NW", lat: 38.8999094, lng: -77.0200688, district: "d1" },
+    { id: "CAM-155", name: "7th Street, NW and G Street, NW", lat: 38.8982145, lng: -77.0220261, district: "d1" },
+    { id: "CAM-156", name: "7th Street, NW and F Street, NW", lat: 38.8975052, lng: -77.0217823, district: "d1" },
+    { id: "CAM-157", name: "6th Street, NW and I Street, NW", lat: 38.9009354, lng: -77.0200641, district: "d1" },
+    { id: "CAM-158", name: "7th Street, NW and Pennsylvania Avenue, NW", lat: 38.8935566, lng: -77.0221542, district: "d1" },
+    { id: "CAM-159", name: "First Street, SW and N Street, SW", lat: 38.8747258, lng: -77.0122987, district: "d1" },
+    { id: "CAM-160", name: "Half Street, SW and N Street, SW", lat: 38.8747294, lng: -77.0107562, district: "d1" },
+    { id: "CAM-161", name: "Half Street, SW and O Street, SW", lat: 38.8728879, lng: -77.0105478, district: "d1" },
+    { id: "CAM-162", name: "North Capitol Street, NW and K Street, NW", lat: 38.9023892, lng: -77.0091985, district: "d1" },
+    { id: "CAM-163", name: "12th Street, SE and K Street, SE", lat: 38.8785778, lng: -76.9901778, district: "d1" },
+    { id: "CAM-164", name: "North Capitol Street, NW and Pierce Street, NE", lat: 38.9047599, lng: -77.008892, district: "d1" },
+    { id: "CAM-165", name: "14th Street, SE and Potomac Avenue, SE", lat: 38.8805891, lng: -76.9855176, district: "d1" },
+    { id: "CAM-166", name: "90 Q Street, SW", lat: 38.8708457, lng: -77.01225, district: "d1" },
+    { id: "CAM-167", name: "7th Street, SE and Pennsylvania Avenue, SE", lat: 38.8844299, lng: -76.9960785, district: "d1" },
+    { id: "CAM-168", name: "7th Street, SW and I Street, SW", lat: 38.8794163, lng: -77.0220873, district: "d1" },
+    { id: "CAM-169", name: "6th Street, NE and Maryland Avenue, NE", lat: 38.8940414, lng: -76.9983473, district: "d1" },
+    { id: "CAM-170", name: "15th Street, SE and Independence Avenue, SE", lat: 38.8875061, lng: -76.9835562, district: "d1" },
+    { id: "CAM-171", name: "New Jersey Avenue, SE and M Street, SE", lat: 38.8766087, lng: -77.0043995, district: "d1" },
+    { id: "CAM-172", name: "10th Street, NE and H Street, NE", lat: 38.9003063, lng: -76.9927845, district: "d1" },
+    { id: "CAM-173", name: "7th Street, NE and H Street, NE", lat: 38.9001264, lng: -76.9963194, district: "d1" },
+    { id: "CAM-174", name: "9th Street, NE and K Street, NE", lat: 38.902579, lng: -76.9938606, district: "d1" },
+    { id: "CAM-175", name: "12th Street, SE and G Street, SE", lat: 38.8812034, lng: -76.9903514, district: "d1" },
+    { id: "CAM-176", name: "13th Street, SE and Potomac Avenue, SE", lat: 38.8792141, lng: -76.98848, district: "d1" },
+    { id: "CAM-177", name: "Half Steet, SW and P Street, SW", lat: 38.8719431, lng: -77.0105518, district: "d1" },
+    { id: "CAM-178", name: "13th Street, NE and North Carolina Avenue, NE", lat: 38.8904639, lng: -76.988339, district: "d1" },
+    { id: "CAM-179", name: "11th Street, SE and C Street, SE", lat: 38.8860405, lng: -76.9915778, district: "d1" },
+    { id: "CAM-180", name: "11th Street, NE and H Street, NE", lat: 38.900109, lng: -76.9913779, district: "d1" },
+    { id: "CAM-181", name: "12th Street, NE and H Street, NE", lat: 38.9003065, lng: -76.9900724, district: "d1" },
+    { id: "CAM-247", name: "9th Street, NW and New York Avenue, NW", lat: 38.9022303, lng: -77.0241896, district: "d2" },
+    { id: "CAM-248", name: "11th Street, NW and E Street, NW", lat: 38.8962846, lng: -77.0269047, district: "d2" },
+    { id: "CAM-249", name: "Connecticut Avenue, NW and K Street, NW", lat: 38.9026299, lng: -77.0392421, district: "d2" },
+    { id: "CAM-250", name: "Wisconsin Avenue, NW and P Street, NW", lat: 38.9091918, lng: -77.0643997, district: "d2" },
+    { id: "CAM-251", name: "Connecticut Avenue, NW and Albermarle Street, NW", lat: 38.9478122, lng: -77.0653926, district: "d2" },
+    { id: "CAM-252", name: "1350 Pennsylvania Avenue, NW", lat: 38.8954034, lng: -77.0312465, district: "d2" },
+    { id: "CAM-253", name: "Connecticut Avenue, NW and Van Ness, NW", lat: 38.9430161, lng: -77.0630119, district: "d2" },
+    { id: "CAM-254", name: "17th Street, NW and Desales Street, NW", lat: 38.9046718, lng: -77.0386421, district: "d2" },
+    { id: "CAM-255", name: "Connecticut Avenue, NW and Brandywine Street, NW", lat: 38.9497625, lng: -77.066947, district: "d2" },
+    { id: "CAM-256", name: "4502 Wisconsin Avenue, NW", lat: 38.9482899, lng: -77.0801598, district: "d2" },
+    { id: "CAM-257", name: "18th Street, NW and L Street, NW", lat: 38.9038313, lng: -77.0418243, district: "d2" },
+
+    // ↑ ADD NEW CAMERAS ABOVE THIS LINE (copy a line above and edit it)
+  ];
+
+  const districtColors = {
+    d1: "#c41e3a", d2: "#fff600", d3: "#734f96",
+    d4: "#00cdcd", d5: "#fffdd0", d6: "#ff7256", d7: "#6050dc"
+  };
+
+  const districtLabels = {
+    d1: "District 1", d2: "District 2", d3: "District 3",
+    d4: "District 4", d5: "District 5", d6: "District 6", d7: "District 7"
+  };
+
+  // ─── MAP SETUP ──────────────────────────────────────────────────
+  const map = L.map('map', {
+    center: [38.9097273, -77.0321367],
+    zoom: 13,
+    zoomControl: false
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  L.control.zoom({ position: 'topright' }).addTo(map);
+
+  // ─── MARKERS ────────────────────────────────────────────────────
+  let markers = [];
+  let currentFilter = 'all';
+
+  function createMarker(cam) {
+    const color = districtColors[cam.district] || "#00e5ff";
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="cam-marker cam-${cam.district}">📷</div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      popupAnchor: [0, -18]
+    });
+
+    const marker = L.marker([cam.lat, cam.lng], { icon });
+
+    marker.bindPopup(`
+      <div class="popup-inner">
+        <div class="popup-header">
+          <span class="popup-icon">📷</span>
+          <div>
+            <div class="popup-title">${cam.name}</div>
+            <div class="popup-id">${cam.id}</div>
+          </div>
+        </div>
+        <div class="popup-row">
+          <span>District</span>
+          <span class="popup-badge badge-${cam.district}">${districtLabels[cam.district]}</span>
+        </div>
+      </div>
+    `, { maxWidth: 260 });
+
+    marker.cameraData = cam;
+    return marker;
+  }
+
+  function renderMarkers(filter) {
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+
+    const filtered = cameras.filter(cam =>
+      filter === 'all' ? true : cam.district === filter
+    );
+
+    filtered.forEach(cam => {
+      const m = createMarker(cam);
+      m.addTo(map);
+      markers.push(m);
+    });
+  }
+
+  function filterCameras(btn, filter) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = filter;
+    renderMarkers(filter);
+    renderSidebar(filter);
+  }
+
+  // ─── SIDEBAR ─────────────────────────────────────────────────────
+  function renderSidebar(filter) {
+    const list = document.getElementById('sidebar-list');
+    const search = document.getElementById('sidebar-search').value.toLowerCase();
+
+    const filtered = cameras.filter(cam => {
+      const matchesFilter = filter === 'all' ? true : cam.district === filter;
+      const matchesSearch = cam.name.toLowerCase().includes(search) || cam.id.toLowerCase().includes(search);
+      return matchesFilter && matchesSearch;
+    });
+
+    document.getElementById('sidebar-count').textContent = filtered.length;
+
+    // Group by district
+    const groups = {};
+    filtered.forEach(cam => {
+      if (!groups[cam.district]) groups[cam.district] = [];
+      groups[cam.district].push(cam);
+    });
+
+    list.innerHTML = '';
+    Object.keys(groups).sort().forEach(district => {
+      const color = districtColors[district] || '#fff';
+      const label = districtLabels[district] || district;
+
+      const groupEl = document.createElement('div');
+      groupEl.className = 'sidebar-district-group';
+
+      const title = document.createElement('div');
+      title.className = 'sidebar-district-title';
+      title.innerHTML = `<span class="district-dot" style="background:${color}"></span>${label} — ${groups[district].length} camera${groups[district].length !== 1 ? 's' : ''}`;
+      groupEl.appendChild(title);
+
+      groups[district].forEach(cam => {
+        const item = document.createElement('div');
+        item.className = 'sidebar-item';
+        item.innerHTML = `
+          <span class="sidebar-item-icon">📷</span>
+          <div class="sidebar-item-info">
+            <div class="sidebar-item-name" title="${cam.name}">${cam.name}</div>
+            <div class="sidebar-item-id">${cam.id}</div>
+          </div>
+        `;
+        item.addEventListener('click', () => {
+          map.setView([cam.lat, cam.lng], 17);
+          // Open the matching marker popup
+          markers.forEach(m => {
+            if (m.cameraData && m.cameraData.id === cam.id) {
+              m.openPopup();
+            }
+          });
+          document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+          item.classList.add('active');
+        });
+        groupEl.appendChild(item);
+      });
+
+      list.appendChild(groupEl);
+    });
+  }
+
+  document.getElementById('sidebar-search').addEventListener('input', () => {
+    renderSidebar(currentFilter);
+  });
+
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const expandBtn = document.getElementById('sidebar-expand-btn');
+    const collapsed = !sidebar.classList.contains('collapsed');
+    sidebar.classList.toggle('collapsed', collapsed);
+    expandBtn.style.display = collapsed ? 'block' : 'none';
+    setTimeout(() => map.invalidateSize(), 310);
+  }
+
+  // ─── STATS ──────────────────────────────────────────────────────
+  document.getElementById('total-count').textContent = cameras.length + ' Cameras';
+
+
+  // ─── POLICE DISTRICT BOUNDARIES (embedded — no network needed) ──
+  const mpdToAppColor = {
+    1: "#e32636", 2: "#fdee00", 3: "#9966cc",
+    4: "#0048ba", 5: "#66ff00", 6: "#00a85a", 7: "#ff3800"
+  };
+
+  // Official MPD district boundaries (simplified from DC GIS open data)
+  const districtGeoJSON = {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"DISTRICT":1,"NAME":"1st District"},"geometry":{"type":"Polygon","coordinates":[[[-77.0159939,38.8561514],[-77.0147258,38.8581357],[-77.0127946,38.8593722],[-77.0094472,38.8608425],[-77.0072586,38.8622126],[-77.0050699,38.865621],[-77.0029027,38.8684696],[-77.0025808,38.8688455],[-77.0022375,38.869188],[-77.0017225,38.8693717],[-77.0012397,38.8694135],[-77.0006389,38.8693968],[-76.9997376,38.8691044],[-76.9964761,38.8682691],[-76.9953388,38.8680937],[-76.9943196,38.8680435],[-76.9933111,38.8681187],[-76.9922167,38.8684612],[-76.991176,38.8689958],[-76.9900388,38.8700985],[-76.9884938,38.8710674],[-76.985125,38.8727714],[-76.9827003,38.8739074],[-76.9787306,38.8752438],[-76.9731516,38.8769644],[-76.9719285,38.877666],[-76.9707912,38.8792529],[-76.9680447,38.8819088],[-76.9647187,38.8878717],[-76.9637283,38.8897853],[-76.9678053,38.8898188],[-76.9679877,38.8898905],[-76.9687173,38.8898988],[-76.9696185,38.8901577],[-76.9702622,38.8905836],[-76.9717321,38.8919865],[-76.9726226,38.8925794],[-76.9738564,38.8931305],[-76.9751439,38.8933644],[-76.9823429,38.8932975],[-76.9831905,38.8933477],[-76.9836304,38.8934813],[-76.9836196,38.9002114],[-76.9841883,38.900203],[-76.9930717,38.9040354],[-76.9937477,38.9036012],[-76.9937906,38.9013219],[-77.0035645,38.9013386],[-77.0035109,38.9025158],[-77.0090684,38.9025576],[-77.0089826,38.9073917],[-77.0218679,38.902975],[-77.0239601,38.9029792],[-77.0239332,38.8920512],[-77.031937,38.892118],[-77.0320013,38.8842848],[-77.0321515,38.8835999],[-77.0340183,38.8806935],[-77.0347479,38.879875],[-77.0360354,38.8792904],[-77.039018,38.8787559],[-77.0434812,38.8742289],[-77.0403913,38.8711884],[-77.0389536,38.8688495],[-77.0377949,38.8660261],[-77.0377091,38.8645892],[-77.0381168,38.863403],[-77.0375159,38.8611474],[-77.0368722,38.8611474],[-77.0366791,38.8606127],[-77.0353702,38.8598608],[-77.0342758,38.8576218],[-77.0335034,38.8560678],[-77.0159939,38.8561514]]]}},{"type":"Feature","properties":{"DISTRICT":2,"NAME":"2nd District"},"geometry":{"type":"Polygon","coordinates":[[[-77.0525428,38.986701],[-77.1197483,38.9345808],[-77.1179459,38.9320771],[-77.115371,38.9279708],[-77.1127102,38.9247657],[-77.1104357,38.9231298],[-77.1075604,38.920659],[-77.1064175,38.9183353],[-77.1022976,38.9117906],[-77.0962894,38.9073826],[-77.0890797,38.9036422],[-77.0816124,38.9025735],[-77.0741451,38.9013044],[-77.0704544,38.9008702],[-77.0683515,38.9003025],[-77.0674932,38.8986993],[-77.0659054,38.8952591],[-77.0638025,38.8904827],[-77.0601118,38.8886455],[-77.0572794,38.8846369],[-77.0547903,38.8829332],[-77.0434812,38.8742289],[-77.039018,38.8787559],[-77.0360354,38.8792904],[-77.0347479,38.879875],[-77.0341673,38.880468],[-77.0333197,38.8817959],[-77.0320216,38.8838505],[-77.031937,38.892118],[-77.0239332,38.8920512],[-77.0239601,38.9029792],[-77.0315173,38.9055444],[-77.0316675,38.9053775],[-77.0319679,38.905319],[-77.0322254,38.9053691],[-77.0324078,38.9055862],[-77.0322898,38.9058868],[-77.0319465,38.906012],[-77.0319357,38.911113],[-77.0416882,38.9111297],[-77.041656,38.916798],[-77.0461622,38.9143938],[-77.0464089,38.9161218],[-77.0475569,38.9183924],[-77.0478037,38.9185593],[-77.0488122,38.9188515],[-77.050164,38.9211971],[-77.0490268,38.9221153],[-77.0482543,38.9232338],[-77.0485761,38.9244524],[-77.0492843,38.9258046],[-77.0497134,38.9275239],[-77.0492413,38.9279079],[-77.0480397,38.9272902],[-77.0469668,38.926489],[-77.0459154,38.926055],[-77.0448425,38.9265057],[-77.0445421,38.9271567],[-77.0443919,38.9283085],[-77.0448425,38.9291264],[-77.0460227,38.9301113],[-77.0464089,38.9309626],[-77.0481041,38.9317304],[-77.0497349,38.9320309],[-77.0507005,38.9322979],[-77.0507434,38.9329656],[-77.0500996,38.933483],[-77.0491555,38.9339671],[-77.0486191,38.9344511],[-77.0476535,38.9357864],[-77.047911,38.9370215],[-77.0501855,38.9372552],[-77.0519021,38.9378227],[-77.0516446,38.9391579],[-77.0510438,38.941895],[-77.0495847,38.9440646],[-77.0487478,38.9446988],[-77.0475891,38.9457001],[-77.0460441,38.9453663],[-77.0452073,38.9464677],[-77.0440271,38.9479697],[-77.0442632,38.9484369],[-77.0447996,38.9485871],[-77.0452288,38.9478362],[-77.0459154,38.9478696],[-77.046881,38.9481866],[-77.046881,38.9496718],[-77.0448425,38.9511403],[-77.0445421,38.9525254],[-77.0423749,38.9542775],[-77.042053,38.9551118],[-77.0421779,38.9568994],[-77.0421135,38.9578839],[-77.0410836,38.9585013],[-77.0405471,38.9595858],[-77.0416629,38.9602199],[-77.0430577,38.9608706],[-77.0441091,38.9619217],[-77.0456219,38.9630479],[-77.0468664,38.9642575],[-77.0475423,38.9649666],[-77.0471346,38.9656924],[-77.0467367,38.9666311],[-77.0463505,38.9678907],[-77.0456531,38.9685497],[-77.0451059,38.9692337],[-77.044827,38.9700595],[-77.0444569,38.9708328],[-77.0438239,38.9710496],[-77.042279,38.9710246],[-77.041367,38.9710747],[-77.0406375,38.9714667],[-77.0399294,38.9721423],[-77.0398865,38.9729931],[-77.0395324,38.9737605],[-77.0395217,38.9742777],[-77.0398435,38.9750617],[-77.0397899,38.9759291],[-77.0401225,38.9762878],[-77.0405731,38.9766423],[-77.041469,38.9771385],[-77.0423183,38.9776438],[-77.0439383,38.9784111],[-77.0444211,38.9795454],[-77.0446357,38.9800875],[-77.0436486,38.9806046],[-77.0418677,38.9801209],[-77.041181,38.9804545],[-77.0405587,38.9808965],[-77.0398614,38.9816137],[-77.039915,38.9822809],[-77.0404193,38.9829732],[-77.0417282,38.9834402],[-77.0425114,38.9839072],[-77.043831,38.9839239],[-77.0450648,38.9839322],[-77.0463523,38.9843742],[-77.0470068,38.984883],[-77.0478543,38.98535],[-77.0483908,38.9853416],[-77.0487234,38.9855585],[-77.0491311,38.9859254],[-77.0501503,38.9862173],[-77.0509335,38.9861172],[-77.0519635,38.986234],[-77.0525428,38.986701]]]}},{"type":"Feature","properties":{"DISTRICT":3,"NAME":"3rd District"},"geometry":{"type":"Polygon","coordinates":[[[-77.0476535,38.9357864],[-77.0486191,38.9344511],[-77.0491555,38.9339671],[-77.0500562,38.9335072],[-77.0507434,38.9329656],[-77.0507005,38.9322979],[-77.0497349,38.9320309],[-77.0481041,38.9317304],[-77.0464089,38.9309626],[-77.0460227,38.9301113],[-77.0448425,38.9291264],[-77.0443919,38.9283085],[-77.0445345,38.9271727],[-77.0448425,38.9265057],[-77.0459154,38.926055],[-77.0469668,38.926489],[-77.0480397,38.9272902],[-77.0492413,38.9279079],[-77.0497134,38.9275239],[-77.0492843,38.9258046],[-77.0485761,38.9244524],[-77.0482543,38.9232338],[-77.0490268,38.9221153],[-77.050164,38.9211971],[-77.0488122,38.9188515],[-77.0478037,38.9185593],[-77.0475569,38.9183924],[-77.0464052,38.9161132],[-77.0461634,38.9144065],[-77.041656,38.916798],[-77.0416882,38.9111297],[-77.0319357,38.911113],[-77.0319465,38.906012],[-77.0322898,38.9058868],[-77.0324078,38.9055862],[-77.0322167,38.9053688],[-77.0319592,38.9053208],[-77.0316675,38.9053775],[-77.0315173,38.9055444],[-77.0239601,38.9029792],[-77.0218679,38.902975],[-77.0089826,38.9073917],[-77.0089749,38.9266808],[-77.0120648,38.9262885],[-77.0135025,38.9262385],[-77.0144681,38.9263386],[-77.0151011,38.9265723],[-77.0166943,38.9274863],[-77.0174668,38.9282207],[-77.0180515,38.9285003],[-77.0189903,38.928588],[-77.0212433,38.9283042],[-77.0231102,38.9281373],[-77.0260606,38.9278702],[-77.0268223,38.9327109],[-77.0278899,38.932953],[-77.0280427,38.9329446],[-77.0327286,38.9313401],[-77.0327339,38.9312024],[-77.03643,38.9326212],[-77.0364193,38.9382377],[-77.0375565,38.9378121],[-77.0382485,38.9374115],[-77.0391551,38.9369943],[-77.0400778,38.9367272],[-77.0406143,38.9364351],[-77.0413975,38.9361681],[-77.0420197,38.9361681],[-77.0431355,38.9360095],[-77.0440153,38.9359928],[-77.0449487,38.9360012],[-77.0459679,38.9356757],[-77.0476535,38.9357864]]]}},{"type":"Feature","properties":{"DISTRICT":4,"NAME":"4th District"},"geometry":{"type":"Polygon","coordinates":[[[-76.9780422,38.9462001],[-77.0409101,38.9958095],[-77.0435386,38.9935081],[-77.0525155,38.9866791],[-77.0519635,38.986234],[-77.0509335,38.9861172],[-77.0501503,38.9862173],[-77.049152,38.9859484],[-77.0487497,38.985571],[-77.0483908,38.9853416],[-77.0478543,38.98535],[-77.0470068,38.984883],[-77.0463523,38.9843742],[-77.0450648,38.9839322],[-77.0425114,38.9839072],[-77.0417761,38.9834538],[-77.0404193,38.9829732],[-77.0399039,38.9822279],[-77.0398614,38.9816137],[-77.0405587,38.9808965],[-77.0411404,38.9804681],[-77.0418677,38.9801209],[-77.0436486,38.9806046],[-77.0446357,38.9800875],[-77.0439383,38.9784111],[-77.0423882,38.9776865],[-77.0405731,38.9766423],[-77.0401225,38.9762878],[-77.0397899,38.9759291],[-77.0398598,38.9750912],[-77.0395326,38.9743071],[-77.0395324,38.9737605],[-77.0399028,38.9730393],[-77.0399294,38.9721423],[-77.0406375,38.9714667],[-77.041367,38.9710747],[-77.042279,38.9710246],[-77.0438239,38.9710496],[-77.0444569,38.9708328],[-77.0448139,38.9700886],[-77.0451059,38.9692337],[-77.0455971,38.9685996],[-77.0463505,38.9678907],[-77.0467367,38.9666311],[-77.0475423,38.9649666],[-77.0456219,38.9630479],[-77.0441192,38.9619344],[-77.0430577,38.9608706],[-77.0417052,38.9602367],[-77.0405471,38.9595858],[-77.0410836,38.9585013],[-77.0421135,38.9578839],[-77.0421746,38.9569351],[-77.042053,38.9551118],[-77.0423749,38.9542775],[-77.0445421,38.9525254],[-77.0448425,38.9511403],[-77.046881,38.9496718],[-77.046881,38.9481866],[-77.0459154,38.9478696],[-77.0452288,38.9478362],[-77.0447996,38.9485871],[-77.0442632,38.9484369],[-77.0440271,38.9479697],[-77.0460441,38.9453663],[-77.0475891,38.9457001],[-77.0495847,38.9440646],[-77.0510094,38.9419717],[-77.0519021,38.9378227],[-77.0501855,38.9372552],[-77.047911,38.9370215],[-77.0476535,38.9357864],[-77.0459679,38.9356757],[-77.0449487,38.9360012],[-77.0431355,38.9360095],[-77.0420197,38.9361681],[-77.0413975,38.9361681],[-77.0406143,38.9364351],[-77.040068,38.9367309],[-77.0391551,38.9369943],[-77.0382485,38.9374115],[-77.037532,38.9378189],[-77.0364193,38.9382377],[-77.03643,38.9326212],[-77.0327339,38.9312024],[-77.0327286,38.9313401],[-77.0280427,38.9329446],[-77.0268223,38.9327109],[-77.0260606,38.9278702],[-77.0189903,38.928588],[-77.0180515,38.9285003],[-77.0174668,38.9282207],[-77.0166943,38.9274863],[-77.0151499,38.9265993],[-77.0144681,38.9263386],[-77.013385,38.9262321],[-77.0120648,38.9262885],[-77.0089749,38.9266808],[-77.0060123,38.9270674],[-77.0040382,38.9293543],[-77.003137,38.930072],[-77.001356,38.9310402],[-76.9948114,38.9337609],[-76.9929875,38.9351797],[-76.99273,38.9355469],[-76.9919039,38.9373411],[-76.9859515,38.9424936],[-76.9856109,38.9425687],[-76.9817436,38.9425578],[-76.9813735,38.9425787],[-76.9809819,38.9427038],[-76.9806171,38.9429208],[-76.978525,38.9457495],[-76.9780422,38.9462001]]]}},{"type":"Feature","properties":{"DISTRICT":5,"NAME":"5th District"},"geometry":{"type":"Polygon","coordinates":[[[-76.9419103,38.9185189],[-76.9780422,38.9462001],[-76.9784436,38.9458789],[-76.9806171,38.9429208],[-76.9809139,38.942731],[-76.9812411,38.9426225],[-76.9815469,38.9425683],[-76.9856109,38.9425687],[-76.9858223,38.9425349],[-76.9859913,38.9424556],[-76.9919039,38.9373411],[-76.9927354,38.9355033],[-76.9929875,38.9351797],[-76.9948114,38.9337609],[-77.0012863,38.9310843],[-77.0030887,38.9300869],[-77.0040382,38.9293543],[-77.0060123,38.9270674],[-77.0089306,38.9266858],[-77.0090684,38.9025576],[-77.0035109,38.9025158],[-77.0035645,38.9013386],[-76.9937906,38.9013219],[-76.9937477,38.9036012],[-76.9930717,38.9040354],[-76.9841883,38.900203],[-76.9836196,38.9002114],[-76.9836304,38.8934813],[-76.9831669,38.8933454],[-76.9823429,38.8932975],[-76.9752007,38.8933725],[-76.9738564,38.8931305],[-76.9726226,38.8925794],[-76.9717634,38.8920123],[-76.9702622,38.8905836],[-76.9696185,38.8901577],[-76.9687173,38.8898988],[-76.9679877,38.8898905],[-76.9678053,38.8898188],[-76.9635795,38.8898159],[-76.9620238,38.8964545],[-76.9623671,38.8983249],[-76.9621955,38.8995941],[-76.9614015,38.9009968],[-76.9592129,38.9038022],[-76.9574319,38.9071084],[-76.9541488,38.9115331],[-76.9536446,38.9143297],[-76.9530974,38.9147638],[-76.9468133,38.9149545],[-76.9457727,38.9154303],[-76.9419103,38.9185189]]]}},{"type":"Feature","properties":{"DISTRICT":6,"NAME":"6th District"},"geometry":{"type":"Polygon","coordinates":[[[-76.9907161,38.86929],[-76.9905552,38.8691815],[-76.9890638,38.8680705],[-76.9886025,38.8674272],[-76.9788929,38.8656312],[-76.9782438,38.8654809],[-76.9742151,38.8636347],[-76.9723859,38.8629246],[-76.9700363,38.8618469],[-76.9686469,38.8605436],[-76.9681694,38.860222],[-76.9682016,38.8587015],[-76.9676545,38.8575068],[-76.9673004,38.8569303],[-76.9657018,38.8547915],[-76.9640388,38.8531038],[-76.9624188,38.8515998],[-76.9093783,38.89283],[-76.9419103,38.9185189],[-76.9457919,38.9153993],[-76.9468133,38.9149545],[-76.9530974,38.9147638],[-76.9536446,38.9143297],[-76.9541907,38.9114221],[-76.9570875,38.907515],[-76.9592129,38.9038022],[-76.9614015,38.9009968],[-76.9621955,38.8995941],[-76.9623671,38.8983249],[-76.962047,38.8964009],[-76.9635795,38.8898159],[-76.9680447,38.8819088],[-76.9719285,38.877666],[-76.9731516,38.8769644],[-76.9827966,38.8738855],[-76.9896044,38.8703857],[-76.9908083,38.8693586],[-76.9907161,38.86929]]]}},{"type":"Feature","properties":{"DISTRICT":7,"NAME":"7th District"},"geometry":{"type":"Polygon","coordinates":[[[-76.9624188,38.8515998],[-76.9657471,38.8548469],[-76.9675388,38.8573157],[-76.9682016,38.8587015],[-76.9681694,38.860222],[-76.9700171,38.8618062],[-76.9783535,38.8654819],[-76.9886025,38.8674272],[-76.9890623,38.8680567],[-76.9908083,38.8693586],[-76.991176,38.8689958],[-76.9922287,38.8684534],[-76.9933111,38.8681187],[-76.9943196,38.8680435],[-76.9953388,38.8680937],[-76.9963132,38.8682345],[-76.9991349,38.8689487],[-77.0006389,38.8693968],[-77.0012565,38.8694207],[-77.0017225,38.8693717],[-77.0022087,38.8691889],[-77.0026674,38.8687712],[-77.0072915,38.8621864],[-77.0127946,38.8593722],[-77.0147258,38.8581357],[-77.0159939,38.8561514],[-77.0199301,38.8481293],[-77.0209171,38.8463579],[-77.0223119,38.842397],[-77.0248439,38.8325692],[-77.0266034,38.8284572],[-77.0271613,38.8239102],[-77.0276052,38.8179873],[-77.028721,38.7998955],[-76.9624188,38.8515998]]]}}]};
+
+  L.geoJSON(districtGeoJSON, {
+    style: feature => {
+      const d = feature.properties.DISTRICT;
+      const color = mpdToAppColor[d] || "#ffffff";
+      return { color, weight: 2.5, opacity: 0.9, fillColor: color, fillOpacity: 0.06 };
+    },
+    onEachFeature: (feature, layer) => {
+      const d = feature.properties.DISTRICT;
+      layer.bindTooltip(`<strong>District ${d}</strong>`, {
+        permanent: true, direction: 'center', className: 'district-label'
+      });
+    }
+  }).addTo(map);
+
+  // ─── MPDC POLICE SUBSTATIONS ────────────────────────────────────
+  const substations = [
+    { name: "1st District Substation", lat: 38.8834756, lng: -76.9992718 },
+    { name: "2nd District Substation", lat: 38.9348222, lng: -77.0748439 },
+    { name: "3rd District Substation", lat: 38.917836,  lng: -77.0380528 },
+    { name: "4th District Substation", lat: 38.9325583, lng: -77.0256004 },
+    { name: "5th District Substation", lat: 38.9151229, lng: -76.9738238 },
+    { name: "6th District Substation", lat: 38.8724028, lng: -76.9687617 },
+    { name: "7th District Substation", lat: 38.853398,  lng: -76.9695413 },
+  ];
+
+  let substationMarkers = [];
+  let substationsVisible = false;
+
+  function buildSubstationLayer() {
+    substationMarkers.forEach(m => map.removeLayer(m));
+    substationMarkers = [];
+    substations.forEach(s => {
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="substation-marker">🏢</div>`,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+        popupAnchor: [0, -20]
+      });
+      const marker = L.marker([s.lat, s.lng], { icon });
+      marker.bindPopup(`
+        <div class="popup-inner">
+          <div class="popup-header">
+            <span class="popup-icon">🏢</span>
+            <div>
+              <div class="popup-title">${s.name}</div>
+              <div class="popup-id">MPDC Substation</div>
+            </div>
+          </div>
+        </div>
+      `, { maxWidth: 260 });
+      substationMarkers.push(marker);
+    });
+  }
+
+  function toggleSubstations(btn) {
+    substationsVisible = !substationsVisible;
+    if (substationsVisible) {
+      if (substationMarkers.length === 0) buildSubstationLayer();
+      substationMarkers.forEach(m => m.addTo(map));
+      btn.classList.add('active');
+    } else {
+      substationMarkers.forEach(m => map.removeLayer(m));
+      btn.classList.remove('active');
+    }
+  }
+  renderMarkers('all');
+  renderSidebar('all');
+</script>
+</body>
+</html>
